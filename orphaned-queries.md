@@ -126,3 +126,122 @@ resources
 | extend Details = pack_all()
 | project Resource=id, resourceGroup, location, subscriptionId, tags, Details
 ```
+
+#### NAT Gateways
+```
+resources
+| where type == "microsoft.network/natgateways"
+| where isnull(properties.subnets) or properties.subnets == "[]"
+| extend Details = pack_all()
+| project subscriptionId, Resource=id, resourceGroup, location, tags, Details
+```
+
+#### IP Groups
+```
+resources
+| where type == "microsoft.network/ipgroups"
+| where properties.firewalls == "[]" and properties.firewallPolicies == "[]"
+| extend Details = pack_all()
+| project subscriptionId, Resource=id, resourceGroup, location, tags, Details
+```
+
+#### Private DNS Zones
+```
+resources
+| where type == "microsoft.network/privatednszones"
+| where properties.numberOfVirtualNetworkLinks == 0
+| where properties.numberOfRecordSets == 1
+| extend Details = pack_all()
+| project subscriptionId, Resource=id, resourceGroup, location, tags, Details
+```
+
+> **_Note:_** Private DNS Zones with only 1 record set contain just the default SOA record, indicating no custom records exist.
+
+#### Private Endpoints
+```
+resources
+| where type == "microsoft.network/privateendpoints"
+| where properties.privateLinkServiceConnections == "[]" or properties.manualPrivateLinkServiceConnections == "[]"
+| extend Details = pack_all()
+| project subscriptionId, Resource=id, resourceGroup, location, tags, Details
+```
+
+#### Virtual Networks
+```
+resources
+| where type == "microsoft.network/virtualnetworks"
+| where properties.subnets == "[]"
+| extend Details = pack_all()
+| project subscriptionId, Resource=id, resourceGroup, location, tags, Details
+```
+
+> **_Note:_** This identifies Virtual Networks with no subnets configured, indicating they may not be in use.
+
+#### Snapshots
+```
+resources
+| where type == "microsoft.compute/snapshots"
+| where properties.timeCreated < ago(90d)
+| extend sourceResourceId = tostring(properties.creationData.sourceResourceId)
+| join kind=leftouter (
+    resources
+    | project sourceId=id
+) on $left.sourceResourceId == $right.sourceId
+| where isempty(sourceId)
+| extend Details = pack_all()
+| project subscriptionId, Resource=id, resourceGroup, location, properties.timeCreated, properties.diskSizeGB, tags, Details
+```
+
+> **_Note:_** Snapshots older than 90 days where the source disk no longer exists are flagged as potentially orphaned.
+
+#### Application Gateways
+```
+resources
+| where type == "microsoft.network/applicationgateways"
+| where properties.backendAddressPools == "[]"
+| extend Details = pack_all()
+| project subscriptionId, Resource=id, resourceGroup, location, sku=properties.sku.name, tags, Details
+```
+
+#### Virtual Network Gateways
+```
+resources
+| where type == "microsoft.network/virtualnetworkgateways"
+| join kind=leftouter (
+    resources
+    | where type == "microsoft.network/connections"
+    | mv-expand gw = properties.virtualNetworkGateway1, gw2 = properties.virtualNetworkGateway2
+    | extend gwId = tostring(coalesce(gw.id, gw2.id))
+    | summarize connectionCount=count() by gwId
+) on $left.id == $right.gwId
+| where isnull(connectionCount)
+| extend Details = pack_all()
+| project subscriptionId, Resource=id, resourceGroup, location, properties.gatewayType, sku=properties.sku.name, tags, Details
+```
+
+#### Azure Firewall Policies
+```
+resources
+| where type == "microsoft.network/firewallpolicies"
+| where isnull(properties.firewalls) or properties.firewalls == "[]"
+| extend Details = pack_all()
+| project subscriptionId, Resource=id, resourceGroup, location, tags, Details
+```
+
+#### Managed Identities
+```
+resources
+| where type == "microsoft.managedidentity/userassignedidentities"
+| where properties.clientId != ""
+| join kind=leftouter (
+    resources
+    | mv-expand identity = properties.identity.userAssignedIdentities
+    | extend identityId = tostring(bag_keys(identity)[0])
+    | summarize count() by identityId
+) on $left.id == $right.identityId
+| where isempty(identityId)
+| extend Details = pack_all()
+| project subscriptionId, Resource=id, resourceGroup, location, tags, Details
+```
+
+> **_Note:_** User-assigned managed identities not attached to any resource may be orphaned.
