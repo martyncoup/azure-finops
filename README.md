@@ -11,6 +11,7 @@ A collection of Azure Resource Graph queries designed to support FinOps scenario
 | [right-sizing-queries.md](right-sizing-queries.md) | Detect over-provisioned resources that are candidates for downsizing |
 | [compute-optimization-queries.md](compute-optimization-queries.md) | Compute-specific savings including Hybrid Benefit, Spot, and SKU selection |
 | [storage-optimization-queries.md](storage-optimization-queries.md) | Storage-related optimisations including tiering, redundancy, and lifecycle |
+| [carbon-optimization-queries.md](carbon-optimization-queries.md) | Carbon-aware placement, emissions tracking, energy-efficient compute, and sustainability |
 
 ## Usage
 
